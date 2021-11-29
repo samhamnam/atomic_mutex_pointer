@@ -1,3 +1,5 @@
+mod tests;
+
 use std::sync::{Arc, Mutex, MutexGuard};
 
 #[derive(Debug)]
@@ -18,49 +20,38 @@ impl<T> Amp<T> {
     }
 }
 
+// TODO
 pub struct AmpContainer<'l, T: ?Sized> {
     v: Option<MutexGuard<'l, T>>,
 }
 
-#[cfg(test)]
-mod tests {
-    use std::{
-        ops::AddAssign,
-        sync::{Arc, Mutex},
-    };
+/*
+    Allows access to the inner methods from T.
+*/
+mod deref_impl {
+    use std::ops::{Deref, DerefMut};
 
     use crate::Amp;
 
-    #[test]
-    fn it_works() {
-        let k = Arc::new(Mutex::new(5));
-        if let Ok(mut v) = k.lock() {
-            v.add_assign(1);
-        }
-        match k.lock() {
-            Ok(mut v) => {
-                v.add_assign(1);
-            }
-            Err(e) => {
-                println!("Error lock unlocked: {}", e)
-            }
-        }
-        if let Ok(mut v) = k.try_lock() {
-            v.add_assign(1);
-        }
-        match k.try_lock() {
-            Ok(mut v) => {
-                v.add_assign(1);
-            }
-            Err(e) => {
-                println!("Error lock unlocked: {}", e)
-            }
-        }
-        println!("Arc<Mutex>: {:?}", k);
+    impl<T> Deref for Amp<T> {
+        type Target = T;
 
-        let a = Amp::new(5);
-        a += 1;
-        Amp::try_lock(&a);
-        println!("Amp: {:?}", a)
+        fn deref(&self) -> &Self::Target {
+            unsafe {
+                let mg = self.v.lock().unwrap();
+                let k = mg.deref() as *const T;
+                &*k as &T
+            }
+        }
+    }
+
+    impl<T> DerefMut for Amp<T> {
+        fn deref_mut(&mut self) -> &mut T {
+            unsafe {
+                let mut mg = self.v.lock().unwrap();
+                let k = mg.deref_mut() as *mut T;
+                &mut *k as &mut T
+            }
+        }
     }
 }
