@@ -20,11 +20,6 @@ impl<T> Amp<T> {
     }
 }
 
-// TODO
-pub struct AmpContainer<'l, T: ?Sized> {
-    v: Option<MutexGuard<'l, T>>,
-}
-
 /*
     Allows access to the inner methods from T.
 */
@@ -40,7 +35,7 @@ mod deref_impl {
             unsafe {
                 let mg = self.v.lock().unwrap();
                 let k = mg.deref() as *const T;
-                &*k as &T
+                &*k
             }
         }
     }
@@ -50,8 +45,13 @@ mod deref_impl {
             unsafe {
                 let mut mg = self.v.lock().unwrap();
                 let k = mg.deref_mut() as *mut T;
-                &mut *k as &mut T
+                &mut *k
             }
         }
     }
+}
+
+// TODO
+pub struct AmpContainer<'l, T: ?Sized> {
+    v: Option<MutexGuard<'l, T>>,
 }
