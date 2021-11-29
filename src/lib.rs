@@ -1,8 +1,12 @@
 mod tests;
 
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    borrow::BorrowMut,
+    ops::DerefMut,
+    sync::{Arc, Mutex, MutexGuard, TryLockError},
+};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Amp<T> {
     v: Arc<Mutex<T>>,
 }
@@ -10,12 +14,6 @@ impl<T> Amp<T> {
     pub fn new(t: T) -> Self {
         Self {
             v: Arc::new(Mutex::new(t)),
-        }
-    }
-    pub fn try_lock(s: &Self) -> AmpContainer<T> {
-        match s.v.try_lock() {
-            Ok(mut v) => AmpContainer { v: Some(v) },
-            Err(e) => todo!(),
         }
     }
 }
@@ -53,5 +51,40 @@ mod deref_impl {
 
 // TODO
 pub struct AmpContainer<'l, T: ?Sized> {
-    v: Option<MutexGuard<'l, T>>,
+    v: Option<&'l mut T>,
+    e: Option<TryLockError<MutexGuard<'l, T>>>,
+}
+impl<'l, T> AmpContainer<'l, T> {
+    pub fn success(mut self, f: fn(&mut T)) -> Self {
+        if let Some(mg) = &mut self.v {
+            f(mg)
+        }
+        self
+    }
+
+    pub fn error(self, f: fn(&TryLockError<MutexGuard<'l, T>>)) -> Self {
+        if let Some(e) = &self.e {
+            f(e)
+        }
+        self
+    }
+}
+impl<T> Amp<T> {
+    pub fn try_lock(s: &Self) -> AmpContainer<T> {
+        match s.v.try_lock() {
+            Ok(mut v) => AmpContainer {
+                v: {
+                    unsafe {
+                        let k = v.deref_mut() as *mut T;
+                        Some(&mut *k)
+                    }
+                },
+                e: None,
+            },
+            Err(e) => AmpContainer {
+                v: None,
+                e: Some(e),
+            },
+        }
+    }
 }
